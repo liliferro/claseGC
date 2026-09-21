@@ -7,7 +7,7 @@ Workshop de Liliana Ferro en Gran Ciudad Nuevo Polanco.
 
 ## Encuesta participativa v3
 
-Termómetro, tiempo semanal, confesión, origen, destino, superpoder, freno, herramienta y cierre opcional. La confesión incluye permiso de proyección; herramienta distingue dispositivo. Los borradores v3 se recuperan en el mismo navegador. Quienes respondieron una versión anterior pueden completar la nueva al volver a entrar, conservando su registro.
+Termómetro, tiempo semanal, confesión, origen, destino, superpoder, freno, herramienta y cierre opcional. Las confesiones se muestran sin firma; se respetan las respuestas anteriores marcadas privadas. Herramienta distingue dispositivo. Los borradores v3 se recuperan en el mismo navegador. Quienes respondieron una versión anterior pueden completar la nueva al volver a entrar, conservando su registro.
 
 El dashboard consulta cada cinco segundos. Muestra termómetro, herramientas, intervalo de horas y nube de deseos autorizados, confesiones consentidas, rutas de trabajo, votos y frenos. Los intervalos antiguos quedan fuera de la nueva suma. Las horas representan dedicación declarada, nunca ahorro garantizado.
 
@@ -34,3 +34,9 @@ No se borran las respuestas ni los ejercicios antiguos al actualizar el código.
 ## Generación integrada
 
 El botón Generar mi clase usa recetas editoriales y soluciones verificadas, seleccionadas por las rutas, votos y freno del grupo. No llama a un modelo. El texto libre activa variantes concretas (recibos, presupuestos, horarios); no promete comprensión semántica general. Si no existe un patrón, el ejercicio se marca complementario. El prompt maestro permite una personalización adicional en cualquier IA elegida por la facilitadora. La generación integrada conserva las 26 tarjetas, loops y pasos de las demos.
+
+## Respuestas abiertas y equivalencias
+
+Otro abre un campo obligatorio en nivel, origen, destino, superpoder, freno, herramienta y dispositivo. Se guarda como `{opcion,texto}` en una sola respuesta; los borradores conservan el texto. Horas añade No sé estimarlo, excluido de la suma.
+
+El dashboard conserva los originales y muestra equivalencias por pregunta. La normalización usa reglas explícitas de vocabulario/formato/objetivo, no un modelo semántico. Ambigüedades, negaciones y expresiones no reconocidas quedan para revisión, sin borrarlas ni fusionarlas. El prompt maestro incluye originales, equivalencias y pendientes. Los patrones de ejercicios reúnen un resultado y una capacidad comunes entre distintos orígenes; el mapa de rutas mantiene los recorridos originales normalizados. Analizar una tabla se distingue de extraer datos a ella.
