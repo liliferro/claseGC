@@ -41,6 +41,7 @@ test('variantes responden a la confesión y las prácticas faltantes se etiqueta
 
 import {normalizarRespuesta,prepararRespuesta} from '../lib/respuestas.mjs';
 test('Otro exige texto, conserva el original y no guarda detalles inactivos',()=>{
+ assert.equal(prepararRespuesta('sueno',undefined),'');assert.equal(prepararRespuesta('sueno','Cenar con mi familia'),'Cenar con mi familia');
  assert.throws(()=>prepararRespuesta('destino','Otro resultado','  '));
  assert.deepEqual(prepararRespuesta('destino','Otro resultado','  Un reporte en Excel  '),{opcion:'Otro resultado',texto:'Un reporte en Excel'});
  assert.equal(prepararRespuesta('destino','Una decisión','detalle anterior'),'Una decisión');
