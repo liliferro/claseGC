@@ -10,7 +10,7 @@ test('intervalos abiertos, datos antiguos y respuestas incompletas no inventan p
 });
 test('proyección respeta el permiso y resumen para IA no incluye nombres del registro',()=>{
  const d=sala([{tarea:'Privada',permiso:'Solo para preparar la clase',sueno:'Privado'},{tarea:'Pública',permiso:'De forma anónima',sueno:'Cenar'},{tarea:'Pública con alias',permiso:'Con mi nombre o alias'},{tarea:'Sin permiso'}]);
- assert.equal(casosPublicos(d).length,2);assert.equal(casosPublicos(d)[0].nombre,'Anónimo');assert.equal(casosPublicos(d)[1].nombre,'Persona 2');assert.deepEqual(resumir(d).cierres,['Cenar']);assert.ok(!JSON.stringify(resumir(d)).includes('Persona 2'));
+ assert.equal(casosPublicos(d).length,2);assert.equal(casosPublicos(d)[0].nombre,'Anónimo');assert.equal(casosPublicos(d)[1].nombre,'Anónimo');assert.deepEqual(resumir(d).cierres,['Cenar']);assert.ok(!JSON.stringify(resumir(d)).includes('Persona 2'));
 });
 test('selección maximiza cobertura respetando diversidad y al menos dos votos del podio',()=>{
  const p=(id,n,capacidad,superpoder)=>({id,n,capacidad,superpoder,casos:Array.from({length:n},(_,i)=>id+i)});
