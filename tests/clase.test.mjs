@@ -1,3 +1,4 @@
+import {tarjetasGamma, palabras, promptManual} from '../lib/gamma.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {resumir,seleccionar,validarClase,promptGamma,casosPublicos,PODERES} from '../lib/clase.mjs';
@@ -19,6 +20,7 @@ test('selección maximiza cobertura respetando diversidad y al menos dos votos d
 test('generación exige tres ejercicios y conserva la selección exacta y el prompt íntegro',()=>{
  const r=resumir(sala([{tarea:'Pedidos',origen:'Correos',destino:'Una tabla o lista',superpoder:PODERES[2]}]));
  const base={titulo:'Práctica',aQuienSirve:'Grupo',capacidad:'extraer',patron:r.seleccion.patrones[0].id,superpoder:PODERES[2],motivo:'Cobertura',casos:['caso-1'],pasos:['Leer','Pedir','Comprobar'],datos:'Venta: 10',prompt:'Conserva ```texto``` completo',resultado:'10',verificacion:'Comparar con fuente',adaptacion:'Repetir mañana'};
- const c={lectura:'Muestra parcial',objetivo:'Practicar',cierre:'¿Para qué usarías ese tiempo?',grupos:[],ejercicios:[base,{...base,patron:'complementario',casos:[],capacidad:'resumir'},{...base,patron:'complementario',casos:[],capacidad:'redactar'}]};
- validarClase(c,r);assert.equal((promptGamma(c,r).match(/TARJETA \d+/g)||[]).length,15);assert.ok(promptGamma(c,r).includes(base.prompt));assert.throws(()=>validarClase({...c,ejercicios:c.ejercicios.slice(0,2)},r));assert.throws(()=>validarClase({...c,ejercicios:[{...base,casos:[]},...c.ejercicios.slice(1)]},r));
+ const c={frenoEjercicio:1,frenoRespuesta:'Compara la salida con la fuente.',lectura:'Muestra parcial',objetivo:'Practicar',cierre:'¿Para qué usarías ese tiempo?',grupos:[],ejercicios:[base,{...base,patron:'complementario',casos:[],capacidad:'resumir'},{...base,patron:'complementario',casos:[],capacidad:'redactar'}]};
+ c.ejercicios=c.ejercicios.map((e,i)=>({...e,origenCaso:i?'':'caso-1',origenResumen:'Pedidos por correo',tecnica:['entrevista','critica','alternativas'][i],loops:['Pregunta por el pedido que falta.','Corrige el pedido con la fuente.'],reto:'',combo:{frase:'El contexto guarda pedidos, el prompt ordena y la tabla permite comprobar.',cadena:['Contexto','Prompt manual','Tabla'],plan:'Disponibilidad por confirmar en la cuenta',protagonistas:[],apoyos:[],pasos:['Abre tu herramienta','Pega datos ficticios','Comprueba la tabla'],estado:'Manual',limitacion:'Traspaso manual, sin conexiones.',fuentes:[]}}));
+ validarClase(c,r);assert.equal(tarjetasGamma(c,r).length,26);assert.ok(promptGamma(c,r).includes(base.prompt));assert.ok(promptGamma(c,r).startsWith('# Trabaja mejor'));assert.ok(promptGamma(c,r).includes('````text'));assert.throws(()=>validarClase({...c,ejercicios:c.ejercicios.map(e=>({...e,tecnica:'entrevista'}))},r));assert.ok(promptManual(r,'Reglas').includes('<respuestas>'));assert.throws(()=>validarClase({...c,ejercicios:c.ejercicios.slice(0,2)},r));assert.throws(()=>validarClase({...c,ejercicios:[{...base,casos:[]},...c.ejercicios.slice(1)]},r));
 });
