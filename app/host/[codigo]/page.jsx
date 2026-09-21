@@ -1,229 +1,36 @@
 'use client';
-
-import { useCallback, useEffect, useState } from 'react';
-import { sb } from '../../../lib/supabase';
-import { HORAS_VALOR } from '../../../lib/preguntas';
-
-export default function Host({ params }) {
-  const codigo = params.codigo;
-  const [pin, setPin] = useState('');
-  const [autorizado, setAutorizado] = useState(false);
-  const [datos, setDatos] = useState(null);
-  const [vista, setVista] = useState(0);
-  const [prompt, setPrompt] = useState('');
-  const [ejercicios, setEjercicios] = useState([]);
-  const [generando, setGenerando] = useState(false);
-  const [aviso, setAviso] = useState('');
-
-  useEffect(() => {
-    const guardado = typeof window !== 'undefined' ? localStorage.getItem('pin:' + codigo) : null;
-    const dLaUrl = new URLSearchParams(window.location.search).get('pin');
-    const p = dLaUrl || guardado;
-    if (p) { setPin(p); probar(p); }
-  }, [codigo]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const traer = useCallback(async (p) => {
-    const { data, error } = await sb.rpc('resumen_sala', { p_codigo: codigo, p_pin: p });
-    if (error) return null;
-    return data;
-  }, [codigo]);
-
-  async function probar(p) {
-    const d = await traer(p);
-    if (!d) { setAviso('Ese PIN no abre esta sala.'); return; }
-    localStorage.setItem('pin:' + codigo, p);
-    setAutorizado(true); setDatos(d); setAviso('');
-  }
-
-  // Refresca mientras la gente contesta.
-  useEffect(() => {
-    if (!autorizado) return;
-    const t = setInterval(async () => {
-      const d = await traer(pin);
-      if (d) setDatos(d);
-    }, 2500);
-    return () => clearInterval(t);
-  }, [autorizado, pin, traer]);
-
-  if (!autorizado) {
-    return (
-      <div className="movil">
-        <div className="centro" style={{ width: '100%' }}>
-          <h2>Tablero</h2>
-          <input className="campo" placeholder="PIN de host" value={pin}
-            onChange={(e) => setPin(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && probar(pin)} />
-          {aviso ? <div className="mal">{aviso}</div> : null}
-          <button className="btn" onClick={() => probar(pin)}>Abrir</button>
-        </div>
-      </div>
-    );
-  }
-
-  const r = resumir(datos);
-
-  async function cerrar() {
-    await sb.rpc('cambiar_estado', { p_codigo: codigo, p_pin: pin, p_estado: 'cerrada' });
-    const d = await traer(pin); if (d) setDatos(d);
-  }
-
-  async function generar() {
-    setGenerando(true); setAviso(''); setPrompt('');
-    try {
-      const res = await fetch('/api/generar', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ resumen: r })
-      });
-      const j = await res.json();
-      if (!res.ok) throw new Error(j.error || 'falló');
-      setPrompt(j.prompt || '');
-      setEjercicios(j.ejercicios || []);
-      await sb.rpc('guardar_prompt', { p_codigo: codigo, p_pin: pin, p_prompt: j.prompt || '' });
-    } catch (e) {
-      setAviso('No se pudo generar: ' + e.message + '. Usa "Copiar datos" y pégalos en Claude.');
-    }
-    setGenerando(false);
-  }
-
-  async function publicar() {
-    if (!ejercicios.length) { setAviso('Todavía no hay ejercicios que publicar.'); return; }
-    const { error } = await sb.rpc('publicar_ejercicios', {
-      p_codigo: codigo, p_pin: pin, p_ejercicios: ejercicios
-    });
-    setAviso(error ? 'No se publicó: ' + error.message : 'Publicado. Ya les apareció en el celular.');
-    const d = await traer(pin); if (d) setDatos(d);
-  }
-
-  function copiarDatos() {
-    navigator.clipboard.writeText(textoParaClaude(r)).then(
-      () => setAviso('Datos copiados.'),
-      () => setAviso('No dejó copiar. Selecciona a mano.')
-    );
-  }
-
-  const maxH = r.herramientas.length ? r.herramientas[0].n : 1;
-
-  return (
-    <div className="escena">
-      <div className={'vista' + (vista === 0 ? ' on' : '')}>
-        <div className="centrado">
-          <h1>Así llegó esta sala</h1>
-          <div className="cifras">
-            <div className="cifra"><div className="n">{r.personas}</div><div className="t">personas contestaron al entrar</div></div>
-            <div className="cifra"><div className="n" style={{ color: 'var(--acento)' }}>{r.diario}</div><div className="t">usan IA todos los días</div></div>
-            <div className="cifra"><div className="n" style={{ color: 'var(--tenue)' }}>{r.nunca}</div><div className="t">nunca la han abierto</div></div>
-          </div>
-          <div className="barras">
-            {r.herramientas.map((h) => (
-              <div className="barra" key={h.k}>
-                <div>{h.k}</div>
-                <div className="pista"><div className="llena" style={{ width: (h.n / maxH) * 100 + '%' }} /></div>
-                <div className="v">{h.n}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      <div className={'vista' + (vista === 1 ? ' on' : '')}>
-        <div className="centrado" style={{ textAlign: 'center' }}>
-          <div className="gigante">{r.horas}</div>
-          <p style={{ fontSize: 'clamp(1.05rem,2.2vw,1.9rem)', maxWidth: '24ch', margin: '1em auto 0', fontWeight: 500 }}>
-            horas a la semana que esta sala gasta en cosas que se repiten
-          </p>
-          <p className="tenue" style={{ marginTop: '1.2em' }}>
-            Son cerca de {Math.round((r.horas * 48) / 8)} días de trabajo al año entre todos los que estamos aquí.
-          </p>
-        </div>
-      </div>
-
-      <div className={'vista' + (vista === 2 ? ' on' : '')}>
-        <div style={{ width: '100%' }}>
-          <h2>Esto fue lo que escribieron</h2>
-          <div className="tarjetas">
-            {r.tareas.slice(0, 21).map((t, i) => (
-              <div className="tarjeta" key={i}>
-                <div>{t.tarea}</div>
-                {t.oficio ? <div className="quien">{t.nombre} · {t.oficio}</div> : <div className="quien">{t.nombre}</div>}
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      <div className={'vista' + (vista === 3 ? ' on' : '')}>
-        <h2 style={{ margin: 0 }}>{prompt ? 'La clase de hoy, escrita por ustedes' : 'Vamos a escribir la clase'}</h2>
-        <div className="caja">
-          <div className="cab">
-            <span>Prompt para Gamma</span>
-            <span>{generando ? 'escribiendo…' : null}</span>
-          </div>
-          <pre>{prompt || 'Presiona "Escribir la clase" y Claude lee las ' + r.tareas.length + ' tareas de la sala.'}</pre>
-        </div>
-        {aviso ? <div className="mal">{aviso}</div> : null}
-      </div>
-
-      <div className="barraHost">
-        <button className="btn fantasma" onClick={() => setVista(Math.max(0, vista - 1))}>←</button>
-        <button className="btn fantasma" onClick={() => setVista(Math.min(3, vista + 1))}>→</button>
-        <button className="btn fantasma" onClick={cerrar}>Cerrar sala</button>
-        <button className="btn fantasma" onClick={copiarDatos}>Copiar datos</button>
-        <button className="btn fantasma" onClick={generar} disabled={generando}>Escribir la clase</button>
-        <button className="btn fantasma" onClick={publicar}>Publicar a los celulares</button>
-      </div>
-    </div>
-  );
+import {useCallback,useEffect,useMemo,useState} from 'react';
+import {sb} from '../../../lib/supabase';
+import {resumir,INSTRUCCION} from '../../../lib/clase.mjs';
+const TABS=['Panorama','Necesidades','Clase personalizada','Prompt para Gamma'];
+function Bars({items,total}){return items.length?<div className="barras">{items.map(x=><div className="barra" key={x.k}><div className="bar-label"><span>{x.k}</span><strong>{x.n}<small> / {total}</small></strong></div><div className="pista"><div className="llena" style={{width:Math.min(100,x.n/Math.max(total,1)*100)+'%'}}/></div></div>)}</div>:<p className="empty">Los resultados aparecerán cuando lleguen respuestas.</p>}
+function Exercise({e,index,reserve}){return <article className="exercise"><div className="eyebrow">{reserve?'Por si queda tiempo':'Ejercicio '+(index+1)+' · 13 min'}</div><h3>{e.titulo}</h3><span className="tag">{e.capacidad}</span><p>{e.aQuienSirve}</p><div className="reason"><strong>Por qué lo elegimos</strong><p>{e.motivo}</p><small>{e.casos.length} casos representados</small></div><details><summary>Ver práctica y solución</summary><h4>Datos ficticios para practicar</h4><pre>{e.datos}</pre><ol>{e.pasos.map((p,i)=><li key={i}>{p}</li>)}</ol><h4>Prompt del ejercicio</h4><pre>{e.prompt}</pre><h4>Resultado del ejemplo</h4><p>{e.resultado}</p><h4>Cómo comprobarlo</h4><p>{e.verificacion}</p><h4>Para mañana</h4><p>{e.adaptacion}</p></details></article>}
+export default function Host({params}){
+ const codigo=params.codigo;
+ const [pin,setPin]=useState(''),[autorizado,setAutorizado]=useState(false),[datos,setDatos]=useState(null),[vista,setVista]=useState(0),[clase,setClase]=useState(null),[prompt,setPrompt]=useState(''),[ocupado,setOcupado]=useState(false),[aviso,setAviso]=useState(''),[conexion,setConexion]=useState(true),[filtro,setFiltro]=useState(''),[proyectar,setProyectar]=useState(false),[accediendo,setAccediendo]=useState(false);
+ const storage='clase-v2:'+codigo;
+ const traer=useCallback(async(p)=>{const {data,error}=await sb.rpc('resumen_sala',{p_codigo:codigo,p_pin:p});if(error||!data)throw Error('No se pudo acceder a la sala. Revisa tu PIN y conexión.');return data},[codigo]);
+ async function probar(p){setAccediendo(true);try{const d=await traer(p);setDatos(d);setAutorizado(true);sessionStorage.setItem('host:'+codigo,p);setAviso('')}catch(e){setAviso(e.message)}finally{setAccediendo(false)}}
+ useEffect(()=>{const p=sessionStorage.getItem('host:'+codigo);if(p) {setPin(p);probar(p)}try{const saved=JSON.parse(localStorage.getItem(storage));if(saved?.version===2){setClase(saved);setPrompt(saved.prompt)}}catch{}},[codigo]);
+ useEffect(()=>{if(!autorizado)return;let live=true;async function poll(){try{const d=await traer(pin);if(live){setDatos(d);setConexion(true)}}catch{if(live)setConexion(false)}}const t=setInterval(poll,5000);return()=>{live=false;clearInterval(t)}},[autorizado,traer,pin]);
+ const r=useMemo(()=>resumir(datos),[datos]);
+ const tareas=r.tareas.filter(t=>(t.oficio+' '+t.tarea+' '+t.resultado).toLowerCase().includes(filtro.toLowerCase()));
+ const updated=clase&&JSON.stringify(clase.resumen)!==JSON.stringify(r);
+ async function copy(t,msg){try{await navigator.clipboard.writeText(t);setAviso(msg)}catch{setAviso('No se pudo copiar. Selecciona el texto o descarga el archivo.')}}
+ function download(){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([prompt],{type:'text/markdown;charset=utf-8'}));a.download='clase-'+codigo+'-gamma.md';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)}
+ async function generar(){setOcupado(true);setAviso('');try{const response=await fetch('/api/generar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({codigo,pin})});const j=await response.json();if(!response.ok)throw Error(j.error);const c={version:2,...j};setClase(c);setPrompt(c.prompt);try{localStorage.setItem(storage,JSON.stringify(c))}catch{}setVista(2);setAviso(j.aviso||'Clase generada. Revisa los ejercicios y copia el prompt en Gamma.')}catch(e){setAviso(e.message)}finally{setOcupado(false)}}
+ async function publicar(){if(!clase)return;setOcupado(true);try{const {error}=await sb.rpc('publicar_ejercicios',{p_codigo:codigo,p_pin:pin,p_ejercicios:clase.ejercicios.map(e=>({...e,prompt:e.prompt+'\n\nDATOS FICTICIOS PARA PRACTICAR:\n'+e.datos,pasos:[...e.pasos,'Comprobación: '+e.verificacion,'Resultado de referencia: '+e.resultado,'Para mañana: '+e.adaptacion]}))});if(error)throw error;setDatos(await traer(pin));setAviso('Los dos ejercicios principales ya están disponibles en los teléfonos.')}catch{setAviso('No se pudieron publicar los ejercicios. Intenta nuevamente.')}finally{setOcupado(false)}}
+ async function cambiar(){setOcupado(true);try{const state=datos?.sesion?.estado==='cerrada'?'recibiendo':'cerrada';const {error}=await sb.rpc('cambiar_estado',{p_codigo:codigo,p_pin:pin,p_estado:state});if(error)throw error;setDatos(await traer(pin));setAviso(state==='cerrada'?'Sala cerrada a nuevos ingresos.':'Sala abierta.')}catch{setAviso('No se pudo cambiar el estado de la sala.')}finally{setOcupado(false)}}
+ async function guardar(){setOcupado(true);try{const saved={...clase,prompt,version:2};const {error}=await sb.rpc('guardar_prompt',{p_codigo:codigo,p_pin:pin,p_prompt:JSON.stringify(saved)});if(error)throw error;localStorage.setItem(storage,JSON.stringify(saved));setClase(saved);setAviso('Versión guardada. Las nuevas respuestas no modifican este prompt.')}catch{setAviso('No se pudo guardar. Descarga el prompt para conservarlo.')}finally{setOcupado(false)}}
+ if(!autorizado)return <main className="movil login"><div className="brand"><b>m.</b><span>TRABAJA MEJOR<br/><small>WORKSHOP CON LILIANA FERRO</small></span></div><div className="entry-card"><span className="eyebrow">Espacio de facilitación</span><h1>Tu sala.<br/>Tu próxima clase.</h1><p className="tenue">Revisa las respuestas y transforma las necesidades del grupo en ejercicios prácticos.</p><label htmlFor="pin">PIN de facilitadora</label><input id="pin" className="campo" type="password" autoComplete="off" placeholder="Ingresa tu PIN" value={pin} onChange={e=>setPin(e.target.value)} onKeyDown={e=>e.key==='Enter'&&probar(pin)}/><button className="btn" disabled={accediendo||!pin.trim()} onClick={()=>probar(pin)}>{accediendo?'Abriendo…':'Abrir dashboard →'}</button>{aviso&&<p role="alert" className="notice">{aviso}</p>}</div></main>;
+ return <div className={'dashboard '+(proyectar?'presentation':'')}><aside className="sidebar"><div className="brand"><b>m.</b><span>TRABAJA MEJOR<small>CON LILIANA FERRO</small></span></div><div className="side-label">EL WORKSHOP</div><nav aria-label="Secciones del dashboard">{TABS.map((t,i)=><button key={t} aria-current={vista===i?'page':undefined} onClick={()=>setVista(i)}><span>0{i+1}</span>{t}{i===2&&clase&&<em>✓</em>}</button>)}</nav><div className="side-bottom"><span className="tag">GRAN CIUDAD · POLANCO</span><p>Una clase que empieza<br/>escuchando al grupo.</p><small>60 minutos + preguntas</small></div></aside><main className="workspace"><header className="topbar"><span className={'live '+(!conexion?'offline':'')}>{conexion?'Respuestas en vivo':'Sin conexión · datos anteriores'}</span><span>Sala / <strong>{codigo}</strong></span><button className="btn fantasma" onClick={()=>setProyectar(!proyectar)}>{proyectar?'Salir de proyección':'Modo proyección'}</button></header><div className="page-head"><div><span className="eyebrow">WORKSHOP · TRABAJA MEJOR, NO MÁS</span><h1>{['Una sala, muchas posibilidades.','De lo cotidiano a lo posible.','Esta clase nace de ustedes.','De las respuestas a Gamma.'][vista]}</h1><p className="tenue">{['Conoce al grupo antes de enseñar. Cada respuesta ayuda a elegir una práctica que tenga sentido.','Estas tareas son el punto de partida. Busca patrones que puedan ayudar a más de una persona.','Dos retos prácticos, capacidades diferentes y un resultado para llevarse.','Un guion completo: contexto del grupo, ejemplos, prompts, soluciones y comprobaciones.'][vista]}</p></div>{!proyectar&&<button className="btn primary-action" onClick={generar} disabled={ocupado||!r.tareas.length}>{ocupado?'Preparando…':clase?'Actualizar clase ✦':'Generar mi clase ✦'}</button>}</div>
+ {aviso&&<div role="status" className="notice">{aviso}<button aria-label="Cerrar aviso" onClick={()=>setAviso('')}>×</button></div>}
+ {ocupado&&<div className="processing" role="status"><span className="spinner"/>Preparando el resultado. Conservaremos la versión anterior hasta terminar.</div>}
+ {updated&&<div className="notice">Hay respuestas diferentes a las usadas en esta clase. La versión generada se conserva hasta que decidas actualizarla.</div>}
+ <nav className="mobile-tabs" aria-label="Secciones">{TABS.map((t,i)=><button key={t} onClick={()=>setVista(i)} aria-current={i===vista?'page':undefined}>{t}</button>)}</nav>
+ {vista===0&&<><section className="stats"><div><span>Personas registradas</span><strong>{r.personas}<small> / 40 previstas</small></strong><p>{r.conRespuestas} con alguna respuesta</p></div><div><span>Tareas para trabajar</span><strong>{r.tareas.length}</strong><p>Casos descritos por el grupo</p></div><div><span>Usan IA diariamente</span><strong>{r.diario}</strong><p>Frecuencia declarada, no nivel de dominio</p></div><div><span>Primer acercamiento</span><strong>{r.nunca}</strong><p>Indicaron que nunca han usado IA</p></div></section><section className="insight"><div className="eyebrow">LO QUE NOS DICE EL GRUPO</div><h2>{r.personas===0?'La clase empieza con sus respuestas.':r.nunca>r.diario?'Necesitamos una entrada clara y guiada.':'Podemos partir de tareas concretas.'}</h2><p>{r.personas===0?'Comparte el enlace de la encuesta para comenzar.':`${r.tareas.length} personas han descrito una tarea. ${r.donde[0]?r.donde[0].k+' es el origen de información más mencionado.':'Aún faltan datos sobre el origen de la información.'} La selección final de ejercicios se hará al generar la clase.`}</p></section><div className="grid-two"><section className="panel"><span className="eyebrow">PUNTO DE PARTIDA</span><h2>Cómo utilizan IA</h2><Bars items={r.niveles} total={r.personas}/></section><section className="panel"><span className="eyebrow">SU CAJA DE HERRAMIENTAS</span><h2>Las IA del grupo</h2><p className="tenue">Una persona puede elegir varias herramientas.</p><Bars items={r.herramientas} total={r.personas}/></section><section className="panel"><h2>Dónde está la información</h2><Bars items={r.donde} total={r.personas}/></section><section className="panel"><h2>Qué necesitan superar</h2><Bars items={r.frenos} total={r.personas}/></section></div><section className="panel join-panel"><div><span className="eyebrow">INVITA A PARTICIPAR</span><h2>La siguiente respuesta puede cambiar la clase.</h2><p>El mismo enlace sirve antes del taller y al llegar.</p></div><button className="btn fantasma" onClick={()=>copy(location.origin+'/s/'+codigo,'Enlace de la encuesta copiado.')}>Copiar enlace de entrada</button></section></>}
+ {vista===1&&<><div className="grid-two"><section className="panel"><h2>Tiempo dedicado a tareas repetitivas</h2><p className="tenue">Intervalos declarados por semana. No representan ahorro garantizado.</p><Bars items={r.tiempos} total={r.personas}/></section><section className="panel"><h2>Qué hacen hoy con IA</h2><Bars items={r.usos} total={r.personas}/></section></div><div className="section-head"><h2>Casos del grupo <span className="tag">{r.tareas.length}</span></h2><input className="campo search" aria-label="Buscar casos" placeholder="Buscar por actividad o tarea…" value={filtro} onChange={e=>setFiltro(e.target.value)}/></div>{proyectar?<div className="notice">Los textos individuales se ocultan al proyectar. Muestra los patrones de la clase generada.</div>:<div className="task-grid">{tareas.map(t=><article className="task" key={t.id}><div className="eyebrow">{t.id} · {t.oficio}</div><h3>{t.tarea}</h3>{t.resultado&&<p><strong>Quiere lograr:</strong> {t.resultado}</p>}<footer>{t.horas||'Tiempo sin indicar'} por semana</footer></article>)}{!tareas.length&&<p className="empty">No hay casos que coincidan.</p>}</div>}</>}
+ {vista===2&&(!clase?<section className="empty-state"><span className="orb">✦</span><h2>Primero escuchamos.<br/>Después diseñamos.</h2><p>Usaremos las {r.tareas.length} tareas recibidas para proponer dos ejercicios y uno de reserva. Cada uno incluirá datos de práctica, solución y una forma de comprobar el resultado.</p><button className="btn" disabled={ocupado||!r.tareas.length} onClick={generar}>Crear la clase con estas respuestas</button></section>:<><section className="insight"><span className="eyebrow">OBJETIVO DE ESTA SESIÓN</span><h2>{clase.objetivo}</h2><p>{clase.lectura}</p><small>Versión del {new Date(clase.creada).toLocaleString('es-MX')} · {clase.resumen.tareas.length} casos analizados</small></section><div className="pattern-list">{clase.grupos.map((g,i)=><article className="panel" key={i}><span className="tag">{g.casos.length} casos</span><h3>{g.titulo}</h3><p>{g.necesidad}</p></article>)}</div><div className="section-head"><h2>Aprender haciendo</h2><span className="tag">2 prácticas · 26 minutos</span></div><div className="grid-two">{clase.ejercicios.map((e,i)=><Exercise key={i} e={e} index={i}/>)}</div><details className="panel reserve"><summary>Ejercicio de reserva · {clase.reserva.titulo}</summary><Exercise e={clase.reserva} reserve/></details><section className="panel"><h2>Así transcurrirá la hora</h2><div className="agenda">{[['00–05','Bienvenida'],['05–13','Fundamentos'],['13–18','Este grupo'],['18–31','Práctica 1'],['31–44','Práctica 2'],['44–55','Tu caso'],['55–60','Cierre']].map(([t,n])=><div key={t}><strong>{t}</strong><span>{n}</span></div>)}</div></section>{!proyectar&&<div className="actions"><button className="btn" onClick={()=>setVista(3)}>Revisar prompt para Gamma →</button><button className="btn fantasma" disabled={ocupado} onClick={publicar}>Publicar 2 ejercicios en los teléfonos</button></div>}</>)}
+ {vista===3&&<section className="panel gamma"><div className="section-head"><div><span className="eyebrow">PRESENTACIÓN PERSONALIZADA</span><h2>El guion que se lleva Gamma</h2></div><span className="tag">12 tarjetas + reserva</span></div><p className="tenue">Revisa y edita el texto. Cópialo en Gamma para crear la presentación. Editar este guion no modifica los ejercicios publicados en los teléfonos.</p>{prompt?<><textarea className="gamma-editor" aria-label="Prompt editable para Gamma" value={prompt} onChange={e=>setPrompt(e.target.value)}/><div className="actions"><button className="btn" onClick={()=>copy(prompt,'Prompt completo copiado. Ya puedes pegarlo en Gamma.')}>Copiar prompt completo</button><button className="btn fantasma" onClick={download}>Descargar .md</button><button className="btn fantasma" disabled={ocupado} onClick={guardar}>Guardar versión</button><a className="text-link" href="https://gamma.app/" target="_blank" rel="noreferrer">Abrir Gamma ↗</a></div></>:<div className="empty-state"><h3>Aún no hay una clase generada.</h3><p>Genera la clase desde las respuestas o copia las instrucciones y los datos para trabajar manualmente en Claude.</p></div>}<details><summary>Preparar manualmente si la generación no está disponible</summary><p>Este botón copia las instrucciones de selección junto con los datos sin nombres. Pégalos en Claude para preparar los ejercicios.</p><button className="btn fantasma" onClick={()=>copy(INSTRUCCION+'\nDATOS DE LA SALA:\n'+JSON.stringify(r,null,2),'Instrucciones y datos copiados.')}>Copiar instrucciones y respuestas</button></details></section>}
+ {!proyectar&&<footer className="dashboard-footer"><span>Facilita Liliana Ferro · Gran Ciudad Nuevo Polanco</span><button className="text-button" disabled={ocupado} onClick={cambiar}>{datos?.sesion?.estado==='cerrada'?'Reabrir sala':'Cerrar nuevos ingresos'}</button></footer>}</main></div>
 }
-
-/* ---------- cálculo ---------- */
-
-function resumir(datos) {
-  const vacio = { personas: 0, diario: 0, nunca: 0, horas: 0, herramientas: [], donde: [], frenos: [], tareas: [] };
-  if (!datos) return vacio;
-
-  const porAsistente = {};
-  (datos.asistentes || []).forEach((a) => { porAsistente[a.id] = { ...a, resp: {} }; });
-  (datos.respuestas || []).forEach((r) => {
-    if (porAsistente[r.asistente_id]) porAsistente[r.asistente_id].resp[r.pregunta] = r.valor;
-  });
-  const gente = Object.values(porAsistente);
-
-  const cuenta = (campo) => {
-    const m = {};
-    gente.forEach((p) => {
-      const v = p.resp[campo];
-      (Array.isArray(v) ? v : v ? [v] : []).forEach((x) => { m[x] = (m[x] || 0) + 1; });
-    });
-    return Object.keys(m).map((k) => ({ k, n: m[k] })).sort((a, b) => b.n - a.n);
-  };
-
-  return {
-    personas: gente.length,
-    diario: gente.filter((p) => p.resp.nivel === 'Todos los días').length,
-    nunca: gente.filter((p) => p.resp.nivel === 'Nunca').length,
-    horas: Math.round(gente.reduce((a, p) => a + (HORAS_VALOR[p.resp.horas] || 0), 0)),
-    herramientas: cuenta('cuales').slice(0, 6),
-    donde: cuenta('donde').slice(0, 6),
-    frenos: cuenta('freno').slice(0, 4),
-    tareas: gente.filter((p) => p.resp.tarea)
-      .map((p) => ({ nombre: p.nombre, oficio: p.oficio, tarea: p.resp.tarea, horas: p.resp.horas }))
-  };
-}
-
-function textoParaClaude(r) {
-  const L = [];
-  L.push('Personas que contestaron: ' + r.personas);
-  L.push('Horas perdidas por semana, sumando a todos: ' + r.horas);
-  L.push('Usan IA todos los días: ' + r.diario + '. Nunca la han usado: ' + r.nunca + '.');
-  L.push('Herramientas: ' + r.herramientas.map((h) => h.k + ' (' + h.n + ')').join(', '));
-  L.push('Dónde vive su información: ' + r.donde.map((h) => h.k + ' (' + h.n + ')').join(', '));
-  L.push('Qué los frena: ' + r.frenos.map((h) => h.k + ' (' + h.n + ')').join(', '));
-  L.push('');
-  L.push('TAREAS REPETITIVAS QUE ESCRIBIERON:');
-  r.tareas.forEach((t, i) => {
-    L.push((i + 1) + '. [' + (t.oficio || 'sin dato') + '] ' + t.tarea + (t.horas ? ' — ' + t.horas : ''));
-  });
-  return L.join('\n');
-}
-
