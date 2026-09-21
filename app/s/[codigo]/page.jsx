@@ -69,7 +69,7 @@ export default function Sala({ params }) {
   async function avanzar() {
     const p = PREGUNTAS[paso];
     const v = valores[p.id] ?? '';
-    if(p.id==='tarea' && !await responder('permiso',valores.permiso))return;
+    if(p.id==='tarea' && !await responder('permiso',valores.permiso==='Solo para preparar la clase'?'Solo para preparar la clase':'De forma anónima'))return;
     if(p.id==='herramienta' && !await responder('dispositivo',valores.dispositivo))return;
     const ok = await responder(p.id, v);
     if (!ok) return;
@@ -183,7 +183,7 @@ function Encuesta({ pregunta, indice, total, valor, extras, onExtra, onCambio, o
     ? (!pregunta.obligatoria || String(valor || '').trim().length > 2)
     : varias ? marcadas.length > 0 : Boolean(valor);
 
-  const listo=respondida && (pregunta.id!=='tarea'||Boolean(extras.permiso)) && (pregunta.id!=='herramienta'||Boolean(extras.dispositivo));
+  const listo=respondida && (pregunta.id!=='herramienta'||Boolean(extras.dispositivo));
   function alternar(op) {
     if (!varias) { onCambio(op); return; }
     const none=['Ninguna','No la uso'];
@@ -214,7 +214,7 @@ function Encuesta({ pregunta, indice, total, valor, extras, onExtra, onCambio, o
         </div>
       )}
 
-      {pregunta.id==='tarea'&&<fieldset className="survey-extra"><legend>¿Cómo mostramos tu confesión y tu cierre en pantalla?</legend><p className="tenue">La facilitadora podrá leerlos para preparar la clase. Tú eliges qué ve el grupo.</p>{['Con mi nombre o alias','De forma anónima','Solo para preparar la clase'].map(op=><button type="button" className="opcion" key={op} aria-pressed={extras.permiso===op} onClick={()=>onExtra('permiso',op)}>{op}</button>)}</fieldset>}
+      {pregunta.id==='tarea'&&<p className="tenue">Las respuestas compartidas en pantalla aparecerán sin nombre ni firma.</p>}
       {pregunta.id==='herramienta'&&<fieldset className="survey-extra"><legend>¿Desde dónde vas a practicar?</legend>{['Celular','Laptop o tablet'].map(op=><button type="button" className="opcion" key={op} aria-pressed={extras.dispositivo===op} onClick={()=>onExtra('dispositivo',op)}>{op}</button>)}</fieldset>}
       {error ? <div className="mal">{error}</div> : null}
       <button className="btn" disabled={!listo || ocupado} onClick={onAvanzar}>
