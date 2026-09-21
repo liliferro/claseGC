@@ -24,17 +24,17 @@ export default function Sala({ params }) {
     try { guardado = JSON.parse(localStorage.getItem(llave) || 'null'); } catch (e) {}
     if (guardado && guardado.asistente_id) {
       setYo(guardado);
-      setValores(guardado.valores || {});
+      setValores(guardado.version===3 ? (guardado.valores || {}) : {});
       setSesionId(guardado.sesion_id || null);
-      setFase(guardado.termino ? 'espera' : 'encuesta');
-      setPaso(Math.min(guardado.paso || 0, PREGUNTAS.length - 1));
+      setFase(guardado.version===3 && guardado.termino ? 'espera' : 'encuesta');
+      setPaso(guardado.version===3 ? Math.min(guardado.paso || 0, PREGUNTAS.length - 1) : 0);
     } else {
       setFase('entrada');
     }
   }, [llave]);
 
   const recuerda = useCallback((datos) => {
-    try { localStorage.setItem(llave, JSON.stringify(datos)); } catch (e) {}
+    try { localStorage.setItem(llave, JSON.stringify({...datos,version:3})); } catch (e) {}
   }, [llave]);
 
   async function entrar(nombre, oficio) {
@@ -66,11 +66,14 @@ export default function Sala({ params }) {
 
   async function avanzar() {
     const p = PREGUNTAS[paso];
-    const v = valores[p.id];
+    const v = valores[p.id] ?? '';
+    if(p.id==='tarea' && !await responder('permiso',valores.permiso))return;
+    if(p.id==='herramienta' && !await responder('dispositivo',valores.dispositivo))return;
     const ok = await responder(p.id, v);
     if (!ok) return;
     const siguiente = paso + 1;
     if (siguiente >= PREGUNTAS.length) {
+      if(!await responder('finalizada_v3',true))return;
       recuerda({ ...yo, valores, paso: siguiente, termino: true });
       setFase('espera');
     } else {
@@ -110,6 +113,8 @@ export default function Sala({ params }) {
         indice={paso}
         total={PREGUNTAS.length}
         valor={valores[p.id]}
+        extras={valores}
+        onExtra={(k,v)=>{const next={...valores,[k]:v};setValores(next);recuerda({...yo,valores:next,paso,termino:false});}}
         onCambio={(v) => { const next={...valores,[p.id]:v}; setValores(next); recuerda({...yo,valores:next,paso,termino:false}); }}
         onVolver={() => {setPaso(paso-1); recuerda({...yo,valores,paso:paso-1,termino:false});}}
         onAvanzar={avanzar}
@@ -123,8 +128,8 @@ export default function Sala({ params }) {
     return (
       <div className="movil"><MoodBrand/>
         <div className="centro espera">
-          <h2>Listo{yo?.nombre ? ', ' + yo.nombre.split(' ')[0] : ''}.</h2>
-          <p className="tenue">Tus respuestas ya forman parte de la clase. Cuando Liliana publique los ejercicios, aparecerán aquí. Puedes volver a este enlace desde el mismo teléfono.</p>
+          <h2>Listo{yo?.nombre ? ', ' + yo.nombre.split(' ')[0] : ''}. Tu voto ya cuenta.</h2>
+          <p className="tenue">Voltea a la pantalla grande: tus respuestas ya forman parte de los números. Cuando Liliana publique los ejercicios, aparecerán aquí. Si respondiste antes del taller, vuelve a este enlace desde el mismo teléfono.</p>
           <div style={{ marginTop: 28 }}>
             <span className="punto" /><span className="punto" /><span className="punto" />
           </div>
@@ -153,29 +158,30 @@ function Entrada({ onEntrar, error, ocupado }) {
         <div style={{ display: 'grid', gap: 12, marginTop: 28 }}>
           <input className="campo" aria-label="Tu nombre o alias" placeholder="Tu nombre o alias" maxLength={80} value={nombre}
             onChange={(e) => setNombre(e.target.value)} autoComplete="given-name" />
-          <input className="campo" aria-label="A qué te dedicas" placeholder="A qué te dedicas" maxLength={160} value={oficio}
+          <input className="campo" aria-label="Tu trabajo en tres palabras" placeholder="Tu trabajo en tres palabras: mamá, abogada, maratonista" maxLength={160} value={oficio}
             onChange={(e) => setOficio(e.target.value)} />
         </div>
         {error ? <div className="mal">{error}</div> : null}
-        <button className="btn" disabled={!nombre.trim() || ocupado}
+        <button className="btn" disabled={!nombre.trim() || !oficio.trim() || ocupado}
           onClick={() => onEntrar(nombre, oficio)}>
           {ocupado ? 'Entrando…' : 'Construir mi clase →'}
         </button>
-        <p className="tenue" style={{fontSize:'.8rem',textAlign:'center',marginTop:20}}>3–4 minutos · Sin respuestas correctas o incorrectas</p>
+        <p className="tenue" style={{fontSize:'.8rem',textAlign:'center',marginTop:20}}>9 preguntas · Unos 2–3 minutos · Tu voto construye la clase</p>
       </div>
     </div>
   );
 }
 
-function Encuesta({ pregunta, indice, total, valor, onCambio, onAvanzar, onVolver, error, ocupado }) {
+function Encuesta({ pregunta, indice, total, valor, extras, onExtra, onCambio, onAvanzar, onVolver, error, ocupado }) {
   const esTexto = pregunta.tipo === 'texto';
   const varias = pregunta.tipo === 'varias';
   const marcadas = Array.isArray(valor) ? valor : [];
 
-  const listo = esTexto
+  const respondida = esTexto
     ? (!pregunta.obligatoria || String(valor || '').trim().length > 2)
     : varias ? marcadas.length > 0 : Boolean(valor);
 
+  const listo=respondida && (pregunta.id!=='tarea'||Boolean(extras.permiso)) && (pregunta.id!=='herramienta'||Boolean(extras.dispositivo));
   function alternar(op) {
     if (!varias) { onCambio(op); return; }
     const none=['Ninguna','No la uso'];
@@ -184,6 +190,7 @@ function Encuesta({ pregunta, indice, total, valor, onCambio, onAvanzar, onVolve
 
   return (
     <div className="movil"><MoodBrand/>
+      <div aria-live="polite" className="survey-celebration">{indice===3?'Esa era la difícil. Lo demás es tap, tap.':indice===6?'Acabas de votar la clase de hoy.':''}</div>
       <div className="eyebrow" style={{marginBottom:16}}>TU PUNTO DE PARTIDA · {indice+1} / {total}</div>
       <div className="progreso"><i style={{ width: ((indice) / total) * 100 + '%' }} /></div>
       <h2>{pregunta.texto}</h2>
@@ -192,7 +199,7 @@ function Encuesta({ pregunta, indice, total, valor, onCambio, onAvanzar, onVolve
       {esTexto ? (
         <textarea className="campo" style={{ marginTop: 18 }} aria-label={pregunta.texto} maxLength={2500} value={valor || ''}
           onChange={(e) => onCambio(e.target.value)}
-          placeholder="Por ejemplo: todos los días copio a mano los pedidos que me llegan por correo a una hoja de cálculo." />
+          placeholder={pregunta.placeholder} />
       ) : (
         <div className="opciones">
           {pregunta.opciones.map((op) => {
@@ -205,9 +212,11 @@ function Encuesta({ pregunta, indice, total, valor, onCambio, onAvanzar, onVolve
         </div>
       )}
 
+      {pregunta.id==='tarea'&&<fieldset className="survey-extra"><legend>¿Cómo mostramos tu confesión y tu cierre en pantalla?</legend><p className="tenue">La facilitadora podrá leerlos para preparar la clase. Tú eliges qué ve el grupo.</p>{['Con mi nombre o alias','De forma anónima','Solo para preparar la clase'].map(op=><button type="button" className="opcion" key={op} aria-pressed={extras.permiso===op} onClick={()=>onExtra('permiso',op)}>{op}</button>)}</fieldset>}
+      {pregunta.id==='herramienta'&&<fieldset className="survey-extra"><legend>¿Desde dónde vas a practicar?</legend>{['Celular','Laptop o tablet'].map(op=><button type="button" className="opcion" key={op} aria-pressed={extras.dispositivo===op} onClick={()=>onExtra('dispositivo',op)}>{op}</button>)}</fieldset>}
       {error ? <div className="mal">{error}</div> : null}
       <button className="btn" disabled={!listo || ocupado} onClick={onAvanzar}>
-        {ocupado ? 'Guardando…' : indice + 1 === total ? 'Terminar' : 'Siguiente'}
+        {ocupado ? 'Guardando…' : indice + 1 === total ? (String(valor||'').trim()?'Sumar mi respuesta y terminar':'Omitir y terminar') : 'Siguiente →'}
       </button>
       {indice>0&&<button className="btn fantasma" style={{marginTop:12}} disabled={ocupado} onClick={onVolver}>← Anterior</button>}
       <p className="tenue" style={{ textAlign: 'center', fontSize: '.85rem', marginTop: 16 }}>

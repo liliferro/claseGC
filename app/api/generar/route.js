@@ -19,7 +19,7 @@ export async function POST(req){
  let c;try{c=JSON.parse(content.replace(/^```json\s*/,'').replace(/\s*```$/,''))}catch{throw Error('La IA devolvió un formato incompleto. Intenta nuevamente.')}
  validarClase(c,r);const prompt=promptGamma(c,r);
  const snapshot={...c,resumen:r,creada:new Date().toISOString(),prompt};
- const saved=await db.rpc('guardar_prompt',{p_codigo:b.codigo,p_pin:b.pin,p_prompt:JSON.stringify({version:2,...snapshot})});
+ const saved=await db.rpc('guardar_prompt',{p_codigo:b.codigo,p_pin:b.pin,p_prompt:JSON.stringify({version:3,...snapshot})});
  return Response.json({...snapshot,aviso:saved.error?'La clase se generó, pero no pudo guardarse en la base. Descárgala antes de cerrar.':null});
  }catch(e){return Response.json({error:e.name==='TimeoutError'?'La generación tardó demasiado. Intenta nuevamente.':e.message||'No se pudo generar.'},{status:502})}
 }
