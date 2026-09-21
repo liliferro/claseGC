@@ -18,6 +18,8 @@ export default function Sala({ params }) {
   const [error, setError] = useState('');
   const [guardando, setGuardando] = useState(false);
 
+  useEffect(() => { window.scrollTo(0, 0); }, [paso, fase]);
+
   // Si ya entró antes (recargó, se le trabó el celular), lo recuperamos.
   useEffect(() => {
     let guardado = null;
