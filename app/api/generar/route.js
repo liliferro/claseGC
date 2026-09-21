@@ -13,7 +13,11 @@ export async function POST(req){
  const r=resumir(data);if(!r.tareas.length)return Response.json({error:'Necesitamos al menos una tarea descrita para personalizar la clase.'},{status:400});
  if(!process.env.ANTHROPIC_API_KEY)return Response.json({error:'La generación aún no está configurada. Usa Preparar manualmente.'},{status:503});
  const response=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',signal:AbortSignal.timeout(50000),headers:{'content-type':'application/json','x-api-key':process.env.ANTHROPIC_API_KEY,'anthropic-version':'2023-06-01'},body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:9000,system:INSTRUCCION,messages:[{role:'user',content:JSON.stringify(r)}]})});
- if(!response.ok)return Response.json({error:response.status===429?'La API alcanzó su límite. Espera un momento.':'Anthropic no pudo generar la clase (código '+response.status+'). Revisa saldo y configuración.'},{status:502});
+ if(!response.ok){
+  const detail=await response.json().catch(()=>({}));const message=String(detail?.error?.message||'').toLowerCase();
+  const error=response.status===429?'La API alcanzó su límite. Espera un momento.':/credit balance|insufficient.*credit|billing|purchase credits/.test(message)?'Anthropic no tiene saldo suficiente para generar la clase. Recarga créditos de la API o usa el prompt maestro en Claude. La suscripción de Claude y el saldo de la API son independientes.':/model.*(not found|not exist|not available|invalid)/.test(message)?'El modelo configurado no está disponible para esta cuenta de Anthropic. Usa el prompt maestro mientras se revisa la configuración.':response.status===401?'La clave de Anthropic no es válida. Revisa ANTHROPIC_API_KEY en Vercel.':'Anthropic no pudo generar la clase (código '+response.status+'). Usa el prompt maestro y revisa la configuración.';
+  return Response.json({error},{status:502});
+ }
  const j=await response.json();if(j.stop_reason==='max_tokens')throw Error('La respuesta quedó incompleta. Intenta nuevamente.');
  const content=(j.content||[]).filter(x=>x.type==='text').map(x=>x.text).join('');
  let c;try{c=JSON.parse(content.replace(/^```json\s*/,'').replace(/\s*```$/,''))}catch{throw Error('La IA devolvió un formato incompleto. Intenta nuevamente.')}
