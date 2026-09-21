@@ -13,6 +13,7 @@ export default function Sala({ params }) {
   const [paso, setPaso] = useState(0);
   const [valores, setValores] = useState({});
   const [ejercicios, setEjercicios] = useState([]);
+  const [sesionId, setSesionId] = useState(null);
   const [error, setError] = useState('');
   const [guardando, setGuardando] = useState(false);
 
@@ -22,8 +23,10 @@ export default function Sala({ params }) {
     try { guardado = JSON.parse(localStorage.getItem(llave) || 'null'); } catch (e) {}
     if (guardado && guardado.asistente_id) {
       setYo(guardado);
+      setValores(guardado.valores || {});
+      setSesionId(guardado.sesion_id || null);
       setFase(guardado.termino ? 'espera' : 'encuesta');
-      setPaso(guardado.paso || 0);
+      setPaso(Math.min(guardado.paso || 0, PREGUNTAS.length - 1));
     } else {
       setFase('entrada');
     }
@@ -45,8 +48,8 @@ export default function Sala({ params }) {
         : 'No pude entrar. Revisa tu conexión y vuelve a intentar.');
       return;
     }
-    const nuevo = { asistente_id: data.asistente_id, nombre, paso: 0, termino: false };
-    setYo(nuevo); recuerda(nuevo); setFase('encuesta');
+    const nuevo = { asistente_id: data.asistente_id, nombre, sesion_id: data.sesion_id, paso: 0, termino: false };
+    setYo(nuevo); setSesionId(data.sesion_id); recuerda(nuevo); setFase('encuesta');
   }
 
   async function responder(pregunta, valor) {
@@ -67,10 +70,10 @@ export default function Sala({ params }) {
     if (!ok) return;
     const siguiente = paso + 1;
     if (siguiente >= PREGUNTAS.length) {
-      recuerda({ ...yo, paso: siguiente, termino: true });
+      recuerda({ ...yo, valores, paso: siguiente, termino: true });
       setFase('espera');
     } else {
-      recuerda({ ...yo, paso: siguiente, termino: false });
+      recuerda({ ...yo, valores, paso: siguiente, termino: false });
       setPaso(siguiente);
     }
   }
@@ -83,14 +86,17 @@ export default function Sala({ params }) {
       const { data } = await sb.rpc('conteo_sala', { p_codigo: codigo });
       if (!vivo || !data) return;
       if (data.estado === 'publicada') {
-        const { data: ejs } = await sb.from('ejercicios').select('*').order('orden');
+        const { data: sala } = await sb.from('sesiones').select('id').eq('codigo', codigo).maybeSingle();
+        const id = sesionId || sala?.id;
+        if (!id) return;
+        const { data: ejs } = await sb.from('ejercicios').select('*').eq('sesion_id', id).order('orden');
         if (vivo && ejs) { setEjercicios(ejs); setFase('cuaderno'); }
       }
     }
     mirar();
     const t = setInterval(mirar, 3000);
     return () => { vivo = false; clearInterval(t); };
-  }, [fase, codigo]);
+  }, [fase, codigo, sesionId]);
 
   if (fase === 'cargando') return <div className="movil" />;
   if (fase === 'entrada') return <Entrada onEntrar={entrar} error={error} ocupado={guardando} />;
@@ -103,7 +109,8 @@ export default function Sala({ params }) {
         indice={paso}
         total={PREGUNTAS.length}
         valor={valores[p.id]}
-        onCambio={(v) => setValores({ ...valores, [p.id]: v })}
+        onCambio={(v) => { const next={...valores,[p.id]:v}; setValores(next); recuerda({...yo,valores:next,paso,termino:false}); }}
+        onVolver={() => {setPaso(paso-1); recuerda({...yo,valores,paso:paso-1,termino:false});}}
         onAvanzar={avanzar}
         error={error}
         ocupado={guardando}
@@ -116,7 +123,7 @@ export default function Sala({ params }) {
       <div className="movil">
         <div className="centro espera">
           <h2>Listo{yo?.nombre ? ', ' + yo.nombre.split(' ')[0] : ''}.</h2>
-          <p className="tenue">Voltea a la pantalla grande. En un rato te llegan aquí tus ejercicios.</p>
+          <p className="tenue">Tus respuestas ya forman parte de la clase. Cuando Liliana publique los ejercicios, aparecerán aquí. Puedes volver a este enlace desde el mismo teléfono.</p>
           <div style={{ marginTop: 28 }}>
             <span className="punto" /><span className="punto" /><span className="punto" />
           </div>
@@ -135,28 +142,31 @@ function Entrada({ onEntrar, error, ocupado }) {
   const [oficio, setOficio] = useState('');
   return (
     <div className="movil">
-      <div style={{ marginTop: 'auto', marginBottom: 'auto' }}>
+      <div className="brand"><b>m.</b><span>TRABAJA MEJOR<small>WORKSHOP CON LILIANA FERRO</small></span></div>
+      <div className="entry-card">
+        <span className="eyebrow">GRAN CIUDAD · NUEVO POLANCO</span>
         <h1>Trabaja mejor, no más</h1>
         <p className="tenue">
-          Dos datos y arrancamos. Lo que contestes arma la clase de hoy, en vivo.
+          Cuéntanos qué haces y qué tarea te gustaría simplificar. Tus respuestas darán forma a los ejercicios de esta clase.
         </p>
         <div style={{ display: 'grid', gap: 12, marginTop: 28 }}>
-          <input className="campo" placeholder="Tu nombre" value={nombre}
+          <input className="campo" aria-label="Tu nombre o alias" placeholder="Tu nombre o alias" maxLength={80} value={nombre}
             onChange={(e) => setNombre(e.target.value)} autoComplete="given-name" />
-          <input className="campo" placeholder="A qué te dedicas" value={oficio}
+          <input className="campo" aria-label="A qué te dedicas" placeholder="A qué te dedicas" maxLength={160} value={oficio}
             onChange={(e) => setOficio(e.target.value)} />
         </div>
         {error ? <div className="mal">{error}</div> : null}
         <button className="btn" disabled={!nombre.trim() || ocupado}
           onClick={() => onEntrar(nombre, oficio)}>
-          {ocupado ? 'Entrando…' : 'Entrar'}
+          {ocupado ? 'Entrando…' : 'Construir mi clase →'}
         </button>
+        <p className="tenue" style={{fontSize:'.8rem',textAlign:'center',marginTop:20}}>3–4 minutos · Sin respuestas correctas o incorrectas</p>
       </div>
     </div>
   );
 }
 
-function Encuesta({ pregunta, indice, total, valor, onCambio, onAvanzar, error, ocupado }) {
+function Encuesta({ pregunta, indice, total, valor, onCambio, onAvanzar, onVolver, error, ocupado }) {
   const esTexto = pregunta.tipo === 'texto';
   const varias = pregunta.tipo === 'varias';
   const marcadas = Array.isArray(valor) ? valor : [];
@@ -167,17 +177,19 @@ function Encuesta({ pregunta, indice, total, valor, onCambio, onAvanzar, error, 
 
   function alternar(op) {
     if (!varias) { onCambio(op); return; }
-    onCambio(marcadas.includes(op) ? marcadas.filter((x) => x !== op) : [...marcadas, op]);
+    const none=['Ninguna','No la uso'];
+    onCambio(marcadas.includes(op)?marcadas.filter(x=>x!==op):none.includes(op)?[op]:[...marcadas.filter(x=>!none.includes(x)),op]);
   }
 
   return (
     <div className="movil">
+      <div className="eyebrow" style={{marginBottom:16}}>TU PUNTO DE PARTIDA · {indice+1} / {total}</div>
       <div className="progreso"><i style={{ width: ((indice) / total) * 100 + '%' }} /></div>
       <h2>{pregunta.texto}</h2>
       {pregunta.ayuda ? <p className="tenue" style={{ marginTop: -4 }}>{pregunta.ayuda}</p> : null}
 
       {esTexto ? (
-        <textarea className="campo" style={{ marginTop: 18 }} value={valor || ''}
+        <textarea className="campo" style={{ marginTop: 18 }} aria-label={pregunta.texto} maxLength={2500} value={valor || ''}
           onChange={(e) => onCambio(e.target.value)}
           placeholder="Por ejemplo: todos los días copio a mano los pedidos que me llegan por correo a una hoja de cálculo." />
       ) : (
@@ -196,6 +208,7 @@ function Encuesta({ pregunta, indice, total, valor, onCambio, onAvanzar, error, 
       <button className="btn" disabled={!listo || ocupado} onClick={onAvanzar}>
         {ocupado ? 'Guardando…' : indice + 1 === total ? 'Terminar' : 'Siguiente'}
       </button>
+      {indice>0&&<button className="btn fantasma" style={{marginTop:12}} disabled={ocupado} onClick={onVolver}>← Anterior</button>}
       <p className="tenue" style={{ textAlign: 'center', fontSize: '.85rem', marginTop: 16 }}>
         {indice + 1} de {total}
       </p>
