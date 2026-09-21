@@ -64,3 +64,14 @@ test('agrupa un objetivo común entre orígenes y preserva variantes para el pro
  assert.equal(r.agrupaciones.find(g=>g.campo==='destino'&&g.grupo==='Una tabla o lista').n,3);assert.equal(r.normalizacion.pendientes.length,1);assert.equal(r.tareas[0].originales.destino,'Un reporte en Excel');
  const c=generarClaseLocal(r);validarClase(c,r);assert.equal(tarjetasGamma(c,r).length,26);assert.ok(promptManual(r,'Reglas').includes('Un sistema para regar plantas'));
 });
+
+import {resumenConsenso} from '../lib/consenso.mjs';
+test('consenso conserva empates y cobertura tanto en dashboard como en Gamma',()=>{
+ const r=resumir(sala([{tarea:'Responder preguntas',origen:'WhatsApp',destino:'Un mensaje o respuesta',superpoder:PODERES[0]},{tarea:'Leer informes',origen:'Documentos o PDFs',destino:'Una decisión',superpoder:PODERES[1]}]));
+ const consenso=resumenConsenso(r), c=generarClaseLocal(r);
+ assert.equal(consenso.ganan.length,2);assert.match(consenso.votacion,/Empate/);
+ assert.ok(tarjetasGamma(c,r)[13].includes(consenso.votacion));
+ assert.ok(tarjetasGamma(c,r)[13].includes(consenso.cobertura));
+ assert.ok(promptManual(r,'Reglas').includes(consenso.votacion));
+ assert.equal(resumenConsenso(resumir(null)).votacion,'Todavía no hay votos.');
+});
