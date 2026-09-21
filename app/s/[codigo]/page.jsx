@@ -4,6 +4,7 @@ import {MoodBrand} from '../../../lib/brand';
 import { useCallback, useEffect, useState } from 'react';
 import { sb } from '../../../lib/supabase';
 import { PREGUNTAS } from '../../../lib/preguntas';
+import {OTROS,prepararRespuesta} from '../../../lib/respuestas.mjs';
 
 export default function Sala({ params }) {
   const codigo = params.codigo;
@@ -68,9 +69,10 @@ export default function Sala({ params }) {
 
   async function avanzar() {
     const p = PREGUNTAS[paso];
-    const v = valores[p.id] ?? '';
+    let v,dispositivo;
+    try{v=prepararRespuesta(p.id,valores[p.id],valores[p.id+'_otro']);if(p.id==='herramienta')dispositivo=prepararRespuesta('dispositivo',valores.dispositivo,valores.dispositivo_otro);}catch(e){setError(e.message);return;}
     if(p.id==='tarea' && !await responder('permiso',valores.permiso==='Solo para preparar la clase'?'Solo para preparar la clase':'De forma anónima'))return;
-    if(p.id==='herramienta' && !await responder('dispositivo',valores.dispositivo))return;
+    if(p.id==='herramienta' && !await responder('dispositivo',dispositivo))return;
     const ok = await responder(p.id, v);
     if (!ok) return;
     const siguiente = paso + 1;
@@ -183,7 +185,8 @@ function Encuesta({ pregunta, indice, total, valor, extras, onExtra, onCambio, o
     ? (!pregunta.obligatoria || String(valor || '').trim().length > 2)
     : varias ? marcadas.length > 0 : Boolean(valor);
 
-  const listo=respondida && (pregunta.id!=='herramienta'||Boolean(extras.dispositivo));
+  const esOtro=pregunta.otro&&valor===pregunta.otro;
+  const listo=respondida && (!esOtro||String(extras[pregunta.id+'_otro']||'').trim().length>=2) && (pregunta.id!=='herramienta'||Boolean(extras.dispositivo)&& (extras.dispositivo!==OTROS.dispositivo||String(extras.dispositivo_otro||'').trim().length>=2));
   function alternar(op) {
     if (!varias) { onCambio(op); return; }
     const none=['Ninguna','No la uso'];
@@ -214,8 +217,9 @@ function Encuesta({ pregunta, indice, total, valor, extras, onExtra, onCambio, o
         </div>
       )}
 
+      {esOtro&&<label className="survey-extra" style={{display:'block',marginTop:16}} htmlFor="opcion-otro">Escribe tu opción<input id="opcion-otro" className="campo" maxLength={400} placeholder="Cuéntanos cuál…" value={extras[pregunta.id+'_otro']||''} onChange={e=>onExtra(pregunta.id+'_otro',e.target.value)}/></label>}
       {pregunta.id==='tarea'&&<p className="tenue">Las respuestas compartidas en pantalla aparecerán sin nombre ni firma.</p>}
-      {pregunta.id==='herramienta'&&<fieldset className="survey-extra"><legend>¿Desde dónde vas a practicar?</legend>{['Celular','Laptop o tablet'].map(op=><button type="button" className="opcion" key={op} aria-pressed={extras.dispositivo===op} onClick={()=>onExtra('dispositivo',op)}>{op}</button>)}</fieldset>}
+      {pregunta.id==='herramienta'&&<fieldset className="survey-extra"><legend>¿Desde dónde vas a practicar?</legend>{['Celular','Laptop o tablet',OTROS.dispositivo].map(op=><button type="button" className="opcion" key={op} aria-pressed={extras.dispositivo===op} onClick={()=>onExtra('dispositivo',op)}>{op}</button>)}{extras.dispositivo===OTROS.dispositivo&&<label htmlFor="dispositivo-otro">¿Qué dispositivo usarás?<input id="dispositivo-otro" className="campo" maxLength={400} value={extras.dispositivo_otro||''} onChange={e=>onExtra('dispositivo_otro',e.target.value)}/></label>}</fieldset>}
       {error ? <div className="mal">{error}</div> : null}
       <button className="btn" disabled={!listo || ocupado} onClick={onAvanzar}>
         {ocupado ? 'Guardando…' : indice + 1 === total ? (String(valor||'').trim()?'Sumar mi respuesta y terminar':'Omitir y terminar') : 'Siguiente →'}
