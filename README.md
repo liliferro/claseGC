@@ -11,7 +11,9 @@ Termómetro, tiempo semanal, confesión, origen, destino, superpoder, freno, her
 
 El dashboard consulta cada cinco segundos. Muestra termómetro, herramientas, intervalo de horas y nube de deseos autorizados, confesiones consentidas, rutas de trabajo, votos y frenos. Los intervalos antiguos quedan fuera de la nueva suma. Las horas representan dedicación declarada, nunca ahorro garantizado.
 
-La selección de ejercicios maximiza cobertura con tres capacidades distintas; exige al menos dos ejercicios alineados al podio de votos cuando existe una combinación viable. Si faltan patrones, lo informa y solicita prácticas complementarias. Los empates de votos se ordenan alfabéticamente. La IA debe respetar los patrones y casos seleccionados. Cada práctica dura nueve minutos y funciona con texto, sin integraciones. El prompt Gamma contiene 15 tarjetas y la dirección visual de Mood.
+La selección de ejercicios maximiza cobertura con tres capacidades distintas; exige al menos dos ejercicios alineados al podio de votos cuando existe una combinación viable. Si faltan patrones, lo informa y solicita prácticas complementarias. Los empates de votos se ordenan alfabéticamente. La IA debe respetar los patrones y casos seleccionados. Cada práctica dura nueve minutos y funciona con texto, sin integraciones. El documento Gamma v4 contiene 26 tarjetas Markdown, diez de fundamentos y tres por ejercicio. Cada ejercicio añade dos loops distintos, comprobación y demo de tres minutos; el dashboard conserva la preparación para casa. La hora se reparte 15 + 5 + 36 + 4. El prompt maestro con las respuestas también se puede copiar para generación manual.
+
+Los documentos generados validan referencias de casos, diversidad, protagonistas únicos, estructura y límite de 40 palabras por tarjeta (prompts aparte). Las demos identifican pasos manuales y preparación previa. Estas comprobaciones de estructura no prueban que una integración externa esté configurada. Las fuentes oficiales de funciones se incluyen en el material para la facilitadora. Las versiones v3 de la clase permanecen en su clave anterior; generar una nueva produce v4.
 
 ## Ejecución
 
