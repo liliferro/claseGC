@@ -1,4 +1,5 @@
 'use client';
+import {MoodBrand} from '../../../lib/brand';
 
 import { useCallback, useEffect, useState } from 'react';
 import { sb } from '../../../lib/supabase';
@@ -120,7 +121,7 @@ export default function Sala({ params }) {
 
   if (fase === 'espera') {
     return (
-      <div className="movil">
+      <div className="movil"><MoodBrand/>
         <div className="centro espera">
           <h2>Listo{yo?.nombre ? ', ' + yo.nombre.split(' ')[0] : ''}.</h2>
           <p className="tenue">Tus respuestas ya forman parte de la clase. Cuando Liliana publique los ejercicios, aparecerán aquí. Puedes volver a este enlace desde el mismo teléfono.</p>
@@ -142,7 +143,7 @@ function Entrada({ onEntrar, error, ocupado }) {
   const [oficio, setOficio] = useState('');
   return (
     <div className="movil">
-      <div className="brand"><b>m.</b><span>TRABAJA MEJOR<small>WORKSHOP CON LILIANA FERRO</small></span></div>
+      <MoodBrand/>
       <div className="entry-card">
         <span className="eyebrow">GRAN CIUDAD · NUEVO POLANCO</span>
         <h1>Trabaja mejor, no más</h1>
@@ -182,7 +183,7 @@ function Encuesta({ pregunta, indice, total, valor, onCambio, onAvanzar, onVolve
   }
 
   return (
-    <div className="movil">
+    <div className="movil"><MoodBrand/>
       <div className="eyebrow" style={{marginBottom:16}}>TU PUNTO DE PARTIDA · {indice+1} / {total}</div>
       <div className="progreso"><i style={{ width: ((indice) / total) * 100 + '%' }} /></div>
       <h2>{pregunta.texto}</h2>
@@ -218,7 +219,7 @@ function Encuesta({ pregunta, indice, total, valor, onCambio, onAvanzar, onVolve
 
 function Cuaderno({ ejercicios, asistenteId }) {
   return (
-    <div className="movil">
+    <div className="movil"><MoodBrand/>
       <h2>Tus ejercicios</h2>
       <p className="tenue" style={{ marginTop: -4 }}>
         Copia el prompt, pégalo en la IA que uses y guarda aquí lo que te salga para llevártelo.
